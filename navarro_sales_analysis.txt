@@ -1,0 +1,143 @@
+/*
+Iowa Liquor Database: SWOT Analysis SQL Questions
+
+Name: Jessica Navarro
+Category/Vendor assigned: Pernod Ricard Brand
+*/
+select * from sales where vendor ILIKE '%perno%' limit 10;
+-- SELECT, FILTERING & SORTING
+/* 1. Create a list of all transactions for your chosen [Category/Vendor] that took place in
+the last quarter of 2014, sorted by the total sale amount from highest to lowest
+ (Strength: Identifying high-volume peak periods). */
+SELECT s.store, s.item, s.vendor AS PR_Vendor, s.date, SUM(s.total) as Q4_sales
+FROM sales AS s
+WHERE s.vendor ILIKE '%perno%'
+	AND s.date >= '2014-10-01'
+ 	AND s.date < '2015-01-01'
+GROUP BY s.store, s.date, s.item, PR_Vendor
+ORDER BY Q4_sales DESC;
+
+
+-- 2. Which transactions for your [Category/Vendor] had a bottle quantity greater than 12?
+-- Display the date, store number, item description, and total amount.
+-- (Strength: Identifying bulk buyers or wholesale-style transactions).
+SELECT DATE_TRUNC('month', s.date) AS sales_month,
+	s.store, s.description, SUM(s.bottle_qty) AS total_bottles
+FROM sales AS s
+WHERE s.bottle_qty > 12
+	AND s.vendor ILIKE '%perno%'
+GROUP BY sales_month, s.store, s.description
+ORDER BY total_bottles DESC;
+
+
+-- 3. Find all products in the products_table whose item_description contains a specific
+-- keyword (e.g., 'Limited', 'Spiced'). What categories do they belong to?
+-- (Opportunity: Identifying niche product variants).
+SELECT item_no, item_description, category_name, vendor_name
+FROM products
+WHERE vendor_name ILIKE '%perno%'
+	AND item_description ILIKE '%malib%'
+ORDER BY category_name ASC, item_no ASC;
+
+/* AGGREGATION
+ 4. What is the total sales revenue and the average bottle price (btl_price) for your
+ chosen [Category/Vendor]? (Strength/Baseline: Establishing the financial footprint). */
+SELECT s.store, s.category_name, s.description, SUM(total), ROUND(AVG(btl_price :: numeric), 2) AS average_price
+FROM sales as s
+WHERE vendor_no = '370'
+GROUP BY 1, 2, 3;
+
+
+/* 5. How many transactions were recorded for each specific item description within your
+chosen [Category]? Which specific product is the most frequently purchased?
+(Strength: Identifying your "hero" product). */
+SELECT s.vendor, s.description, COUNT(*) AS total_sales
+FROM sales as s
+WHERE vendor ILIKE '%pernod%'
+GROUP BY 2, 1
+ORDER BY 3 DESC;
+
+
+/* 6. Which store generated the highest total revenue for your [Category/Vendor]?
+Which generated the lowest (but still greater than zero)?
+(Strength vs. Weakness: Identifying your best and worst retail partners). */
+SELECT store, SUM(total::money) AS total_sales
+FROM sales
+WHERE vendor ILIKE '%perno%'
+GROUP BY store
+ORDER BY total_sales DESC
+LIMIT 5;
+
+SELECT store, SUM(total)::money AS total_revenue
+FROM sales
+WHERE vendor ILIKE '%perno%'
+GROUP BY store
+ORDER BY total_revenue ASC
+LIMIT 5
+
+
+/* 7. What is the total revenue for every vendor within your chosen [Category],
+sorted from highest to lowest?
+(Threat: Identifying your top competitors in that space). */
+SELECT vendor, SUM(total) AS total_revenue 
+FROM sales
+WHERE category_name
+	IN (SELECT DISTINCT category_name 
+		FROM sales 
+		WHERE vendor ILIKE '%pernod%') 
+GROUP BY 1
+ORDER BY total_revenue DESC;
+
+
+/* 8. Which stores had total sales revenue for your [Category/Vendor] exceeding $2,000?
+(Hint: Use HAVING to filter aggregated store totals).
+(Strength: Pinpointing high-performing retail locations). */
+SELECT store, SUM(total :: money) AS total_revenue, COUNT(*) AS trans
+FROM sales
+WHERE vendor ILIKE '%pernod%'
+GROUP BY 1, 2
+HAVING SUM(total) > 2000
+ORDER BY total_revenue DESC;
+
+-- JOINS
+/*9. Find all sales records where the category_name is either your chosen category
+or a closely related competitor category (e.g., 'VODKA 80 PROOF' vs 'IMPORTED VODKA').
+(Threat: Comparing performance against direct substitutes).*/
+SELECT vendor_no, category_name, vendor, SUM(total::money) AS total_revenue,
+	COUNT(*) AS transaction_count
+FROM sales
+WHERE category_name IN ('IMPORTED VODKA')
+GROUP BY 1, 2, 3
+ORDER BY total_revenue DESC;
+
+
+/*10. List all transactions where the state bottle cost was between $10 and $20 for
+your [Category/Vendor].
+(Opportunity: Analyzing performance in the "mid-tier" price bracket).*/
+SELECT *
+FROM sales
+WHERE vendor ILIKE '%pernod%'
+  AND state_btl_cost :: numeric BETWEEN 10 AND 20
+ ORDER BY state_btl_cost;
+
+
+/*11. Write a query that displays each store's total sales for your [Category/Vendor]
+along with the store's name and address from the stores_table.
+(Strength: Mapping your physical sales footprint).*/
+SELECT s.name, s.store_address, SUM(sales.total::money) AS Total_Sales_Revenue
+FROM stores as s
+		JOIN sales ON sales.store = s.store
+		WHERE  vendor ILIKE '%perno%' 
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+
+
+/*12. For each sale in your [Category], display the transaction date, total amount,
+and the population of the county where the sale occurred by joining with counties_table.
+(Opportunity: Correlating sales volume with population density).*/
+SELECT s.date, s.total::MONEY AS total_amount, c.county, c.population
+FROM sales AS s
+	JOIN counties AS c ON s.county = c.county
+WHERE s.vendor ILIKE '%pernod%'
+ORDER BY 2 DESC;
